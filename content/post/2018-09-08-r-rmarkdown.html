@@ -1,0 +1,53 @@
+---
+title: "First analyses"
+author: "Benoit Parmentier"
+date: 2018-09-08T21:13:14-05:00
+categories: ["R"]
+tags: ["R Markdown", "plot", "regression"]
+---
+
+
+
+<div id="raster-change-analysis-with-two-dates-hurricane-rita" class="section level2">
+<h2>Raster Change analysis with Two dates: Hurricane Rita</h2>
+<p>This blog provides a simple example of change detection analysis using remotely sensed images from two dates. To measure change, we will use a vegetation index (NDVI) to examine how the vegetation and surface was affected by the hurricane.I use two images from the MODIS Terra Sensor (MOD09) to examine if the impact of Hurricane Rita is visible on the ground. Hurricane Rita was a category 3 hurricane that made landfall on September 24, 2005 in the southwest Louisiana coast. The hurricane generated a surge of more than 4 meters than resulted in flooding and in several areas along the coast.</p>
+<p>For this example, we take an image comparison approach using pair of images rather than a time series approach. Pairwise differencing is a common simple approach to asses change when data is scarce in rapid mapping applications. I downloaded and processed MOD09 images for the date before and after hurricane Rita. The data was screened for unreliable pixels and aggregated at a 1km spatial resolution to deal with missing values. The goal of the blog is focus on the analysis for detailed explanation of the tools (e.g. raster package R) please follow links and see the <a href="#references">reference</a> section.</p>
+<div id="setting-up-input-parameters-and-directories" class="section level3">
+<h3>Setting up input parameters and directories</h3>
+<p>First, let us set up the input directories to read in (input directory) and store outputs (output directory). It is good practice to concentrate all the variables and input parameters at the start of the script. We also create an output directory that can change for each analysis (using output suffix as identifier).</p>
+<pre class="r"><code>
+############################################################################
+#####  Parameters and argument set up ###########
+
+#Note: https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/20170008750.pdf
+out_suffix &lt;- &quot;change_&quot; #output suffix for the files and ouptut folder
+
+in_dir &lt;- &quot;/home/bparmentier/c_drive/Users/bparmentier/Data/websites/data/testing_web_site&quot;
+out_dir &lt;- &quot;/home/bparmentier/c_drive/Users/bparmentier/Data/websites/data/testing_web_site&quot;
+
+file_format &lt;- &quot;.tif&quot; #PARAM 4
+
+infile_reflectance_date1 &lt;- &quot;mosaiced_MOD09A1_A2005265__006_reflectance_masked_RITA_reg_1km.tif&quot; #date 1 image
+infile_reflectance_date2 &lt;- &quot;mosaiced_MOD09A1_A2005273__006_reflectance_masked_RITA_reg_1km.tif&quot; #date 2 image
+
+infile_reg_outline &lt;- &quot;new_strata_rita_10282017.shp&quot; #region outline and FEMA data</code></pre>
+</div>
+<div id="reading-in-rasters-and-visualizing-bands" class="section level3">
+<h3>Reading in rasters and visualizing bands</h3>
+<p>We load in the input images. The dates closest to the hurricane event were chosen as likely to show Hurricane impact. The first date corresponds to September 22, 2005 (before event) and the second date to September 30 2005 (after event). We use a raster <a href="https://www.rdocumentation.org/packages/raster/versions/2.6-7/topics/brick">brick</a> and assign the corresponding band names. Note that the bands are not ordered in the order of their spectral wavelengths in the MODIS MOD09 product so we must assign specific band names and order. MOD09 product contains seven bands spanning the optical spectrum. More information on MODIS products can be found at <a href="https://lpdaac.usgs.gov/dataset_discovery/modis/modis_products_table" class="uri">https://lpdaac.usgs.gov/dataset_discovery/modis/modis_products_table</a></p>
+<p>If you are not familiar raster images and how to create, read in or display raster, you might want to check this link <a href="http://rspatial.org/spatial/rst/4-rasterdata.html" class="uri">http://rspatial.org/spatial/rst/4-rasterdata.html</a>) before continuing this blog.</p>
+<pre class="r"><code>
+###### Read in MOD09 reflectance images before and after Hurrican Rita.
+r_before &lt;- brick(file.path(in_dir,infile_reflectance_date1)) # Before RITA, Sept. 22, 2005.
+r_after &lt;- brick(file.path(in_dir,infile_reflectance_date2)) # After RITA, Sept 30, 2005.
+
+names(r_before) &lt;- c(&quot;Red&quot;,&quot;NIR&quot;,&quot;Blue&quot;,&quot;Green&quot;,&quot;SWIR1&quot;,&quot;SWIR2&quot;,&quot;SWIR3&quot;)
+names(r_after) &lt;- c(&quot;Red&quot;,&quot;NIR&quot;,&quot;Blue&quot;,&quot;Green&quot;,&quot;SWIR1&quot;,&quot;SWIR2&quot;,&quot;SWIR3&quot;)
+
+plot(r_before)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<pre class="r"><code>plot(r_after)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-2-2.png" width="672" /></p>
+<p>We note that Red, Near Infrared and Short Wave Infrared (SWIR1 and SWIR2) offer high contrast between vegetated areas and water. These bands also display changes in areas near the coast.</p>
+</div>
+</div>
