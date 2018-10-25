@@ -1,9 +1,13 @@
 ---
-title: "First analyses"
+title: "Raster Change Detection Analysis with two images"
 author: "Benoit Parmentier"
 date: 2018-09-08T21:13:14-05:00
 categories: ["R"]
 tags: ["R Markdown", "plot", "regression"]
+output:
+  html_document: 
+    toc: true # will make headers as table of contents at the beginning
+
 ---
 
 
@@ -49,5 +53,292 @@ plot(r_before)</code></pre>
 <pre class="r"><code>plot(r_after)</code></pre>
 <p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-2-2.png" width="672" /></p>
 <p>We note that Red, Near Infrared and Short Wave Infrared (SWIR1 and SWIR2) offer high contrast between vegetated areas and water. These bands also display changes in areas near the coast.</p>
+</div>
+<div id="visualization-of-impact-using-true-and-false-color-composites." class="section level3">
+<h3>Visualization of impact using true and false color composites.</h3>
+<p>As a first step, we visually inspect for change using band combinations in a color composite. We use an RGB color compositing (raster function:<a href="https://www.rdocumentation.org/packages/raster/versions/2.6-7/topics/plotRGB">plotRGB</a>) which requires identifying spectral bands corresponding to red (band 1), green (band 4) and blue (band 1).This generates a true color composite image similar to color photography.</p>
+<pre class="r"><code>
+#### Generate Color composites
+### True color composite
+
+par(mfrow=c(2,1))
+
+plotRGB(r_before,
+        r=1,
+        g=4,
+        b=3,
+        scale=0.6,
+        stretch=&quot;hist&quot;,
+        main=&quot;before&quot;)
+
+plotRGB(r_after,
+        r=1,
+        g=4,
+        b=3,
+        scale=0.6,
+        stretch=&quot;hist&quot;,
+        main=&quot;after&quot;)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<p>A second useful step is to generate a False color composite. This is similar to a Color Infrared (CIR) photography. We generate a RGB false composite which requires identifying spectral bands corresponding to red (band 2: SWIR), green (band 4) and blue (band 1). False Color compisites may be particularly are useful to detect vegetation and water presence on the ground.</p>
+<pre class="r"><code>
+### False color composite:
+par(mfrow=c(2,1))
+plotRGB(r_before,
+        r=2,
+        g=1,
+        b=4,
+        scale=0.6,
+        stretch=&quot;hist&quot;)
+
+plotRGB(r_after,
+        r=2,
+        g=1,
+        b=4,
+        scale=0.6,
+        stretch=&quot;hist&quot;)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>Visual inspection suggests some change areas especially visible in the false color composite towards the coast in the South East part of the study area. The next step will be to quantitavely assess where changes occur. We will use specific spectral bands combinations (indices) to focus on specific features from the ground.</p>
+</div>
+<div id="generating-indices-from-the-original-bands-ndvi" class="section level3">
+<h3>Generating Indices from the original bands: NDVI</h3>
+<p>We use the original bands from MOD09 product to generate NDVI indices to detect changes in vegetation response. Indices are derived for both before and after the hurricane. NDVI is generated using the Red and Near Infrared (NIR) bands:</p>
+<p>NDVI = (NIR - Red)/(NIR+Red)</p>
+<p>NDVI is widely used to detect vegetation on the ground and sometimes to examine the impact of hurricanes on local forest and flooding. We generated indices for both dates and plot maps on the same scale using the levelplot function from RasterVis.</p>
+<pre class="r"><code>
+names(r_before)
+## [1] &quot;Red&quot;   &quot;NIR&quot;   &quot;Blue&quot;  &quot;Green&quot; &quot;SWIR1&quot; &quot;SWIR2&quot; &quot;SWIR3&quot;
+r_before_NDVI &lt;- (r_before$NIR - r_before$Red) / (r_before$NIR + r_before$Red)
+r_after_NDVI &lt;- (r_after$NIR - r_after$Red)/(r_after$NIR + r_after$Red)
+
+r_NDVI_s &lt;- stack(r_before_NDVI,r_after_NDVI)
+names_panel &lt;- c(&quot;NDVI Before Event&quot;,&quot;NDVI After Event&quot;)
+levelplot(r_NDVI_s,
+          names.attr = names_panel,
+          col.regions=rev(terrain.colors(255)))</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>Comparison of before and after NDVI images suggests a general drop in NDVI for the region with some additional pockets of water near the coast. This visual comparison is interesting but let us check with data from Federal Emergency Management Agency (FEMA) that mapped the area flooded by Rita. We use a vector file with zone=1 representing flooding and zone=0 no flooding. This is rasterized to produce a boxplot of the averages by zones.</p>
+<pre class="r"><code>
+reg_sf &lt;- st_read(file.path(in_dir,infile_reg_outline))
+## Reading layer `new_strata_rita_10282017&#39; from data source `/home/bparmentier/c_drive/Users/bparmentier/Data/websites/data/testing_web_site/new_strata_rita_10282017.shp&#39; using driver `ESRI Shapefile&#39;
+## Simple feature collection with 2 features and 17 fields
+## geometry type:  MULTIPOLYGON
+## dimension:      XY
+## bbox:           xmin: -93.92921 ymin: 29.47236 xmax: -91.0826 ymax: 30.49052
+## epsg (SRID):    4269
+## proj4string:    +proj=longlat +datum=NAD83 +no_defs
+reg_sf &lt;- st_transform(reg_sf,
+                       crs=projection(r_after_NDVI))
+reg_sp &lt;-as(reg_sf, &quot;Spatial&quot;) #Convert to sp object before rasterization
+reg_sp &lt;- as(reg_sf,&quot;Spatial&quot;)
+r_ref &lt;- rasterize(reg_sp,
+                   r_after_NDVI,
+                   field=&quot;OBJECTID_3&quot;,
+                   fun=&quot;min&quot;)
+
+plot(r_ref, &quot;FEMA Flood Zones&quot;)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<pre class="r"><code>
+r_NDVI_s &lt;- mask(r_NDVI_s,r_ref)
+r_NDVI_s &lt;- stack(r_NDVI_s,r_ref)
+names(r_NDVI_s) &lt;- c(&quot;before&quot;,&quot;after&quot;,&quot;zone&quot;)
+ncell(r_NDVI_s) #Ok not too big, let&#39;s coerce the raster into data.frame
+## [1] 34568
+
+## Be careful when using large datasets.
+##This is not advisable for large dataset to convert from raster to data.frame
+#since it loads everything in memory!! 
+
+data_df &lt;- na.omit(as.data.frame(r_NDVI_s))
+
+zonal_var_df &lt;- gather_(data_df,key=&quot;variable&quot;,value=&quot;value&quot;,names(r_NDVI_s)[1:2])
+zonal_var_df$zone &lt;- factor(zonal_var_df$zone,labels=c(&quot;Not flooded&quot;,&quot;Flooded&quot;))
+
+### Classic boxplot
+bp &lt;- ggplot(zonal_var_df, aes(x=variable, y=value)) + 
+  geom_boxplot(aes(fill=zone),na.rm=T)
+
+bp + facet_wrap(~zone) #Generate a faceted boxplot</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-6-2.png" width="672" /></p>
+<p>Using FEMA data, we found that on average, NDVI dropped by 0.1 in areas that were flooded while other areas displayed a slight increase. We also see that there is larger variance in flooded areas. In many cases, we do not have ancillary information on the areas flooded and we need to generate those from the original satellite images. We present below such analysis using a difference image and a reclassification procedure to map areas into impact classes.</p>
+<p>First, let’s generate a difference image using NDVI before and after the hurricane event:</p>
+<pre class="r"><code>
+r_diff &lt;- r_NDVI_s$after - r_NDVI_s$before
+
+plot(r_diff)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<pre class="r"><code>histogram(r_diff)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-7-2.png" width="672" /></p>
+</div>
+<div id="classifying-differences-in-impactdamage-classes" class="section level3">
+<h3>Classifying differences in impact/damage classes</h3>
+<p>We will use a method often used in the scientific literature using a standardized difference image. We generate mean and standard deviation for the difference raster and reclassify the standardized difference image using thresholds assuming a normal distribution. The limits of classes are summarized in the table below:</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">label</th>
+<th align="right">Threshold min</th>
+<th align="center">Threshold max</th>
+<th align="center">value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">no change</td>
+<td align="right">-1.64</td>
+<td align="center">10</td>
+<td align="center">0</td>
+</tr>
+<tr class="even">
+<td align="left">low impact</td>
+<td align="right">-1.96</td>
+<td align="center">-1.64</td>
+<td align="center">1</td>
+</tr>
+<tr class="odd">
+<td align="left">high impact</td>
+<td align="right">-10</td>
+<td align="center">-1.96</td>
+<td align="center">2</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>
+mean_val &lt;- cellStats(r_diff,&quot;mean&quot;)
+std_val &lt;- cellStats(r_diff,&quot;sd&quot;)
+
+r_std &lt;- (r_diff - mean_val)/std_val # standardized image
+
+threshold_val &lt;- c(1.96,1.64)
+plot(r_std)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<pre class="r"><code>hist(r_std,
+    main=&quot;Standardized difference&quot;,
+    xlab=&quot;NDVI difference&quot;)
+abline(v=threshold_val[1],col=&quot;red&quot;,lty=1)
+abline(v=-threshold_val[1],col=&quot;red&quot;,lty=1)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-8-2.png" width="672" /></p>
+<pre class="r"><code>
+m &lt;- c(-1.64, 10, 0,
+       -1.96, -1.64, 1,  
+       -10, -1.96,2)
+
+rclmat &lt;- matrix(m, ncol=3, byrow=TRUE)
+
+r_impact1 &lt;- reclassify(r_std,rclmat)
+freq(r_ref)
+##      value count
+## [1,]     0  9849
+## [2,]     1 11064
+## [3,]    NA 13655
+freq(r_impact1)
+##      value count
+## [1,]     0 19061
+## [2,]     1   510
+## [3,]     2   968
+## [4,]    NA 14029</code></pre>
+<p>Let’s now visualize the output and compute the area for each category. Results indicate that few pixels are selected as highly impacted. This suggests that we may be underestimating the flooded area.</p>
+<p>Options may be to change: the threshold value to 1 standard deviation or use different procedure to reclassify the original difference image. A quick qqplot suggests that our assumption that the data follows a normal distribution is probably unwise. We also note the shoulder in the histogram of distribution and the qqplot. We will use simple thresholding and reclassification to generate another impact map.</p>
+<pre class="r"><code>qqnorm(values(r_std))
+abline(0, 1)</code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>In the second procedure, we assign positive and low decreases in NDVI value 0 (no change), level 1 decrease in NDVI (low impact) for range [-0.3,0.1] while level 2 decrease (higher impact from higher intensity).</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">label</th>
+<th align="right">Threshold min</th>
+<th align="center">Threshold max</th>
+<th align="center">value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">no change</td>
+<td align="right">-0.1</td>
+<td align="center">10</td>
+<td align="center">0</td>
+</tr>
+<tr class="even">
+<td align="left">low impact</td>
+<td align="right">-0.3</td>
+<td align="center">-0.1</td>
+<td align="center">1</td>
+</tr>
+<tr class="odd">
+<td align="left">high impact</td>
+<td align="right">-10</td>
+<td align="center">-0.3</td>
+<td align="center">2</td>
+</tr>
+</tbody>
+</table>
+<p>We keep the same labels in the second procedure but use different thresholds.</p>
+<pre class="r"><code>m &lt;- c(-0.1, 10, 0,
+       -0.3, -0.1, 1,  
+       -10, -0.3, 2)
+rclmat &lt;- matrix(m, ncol=3, byrow=TRUE)
+
+r_impact2 &lt;- reclassify(r_diff,rclmat)
+
+freq(r_impact2)
+##      value count
+## [1,]     0 15087
+## [2,]     1  3338
+## [3,]     2  2114
+## [4,]    NA 14029
+
+legend_val &lt;- c(&quot;No change&quot;, &quot;level 1&quot;, &quot;level 2&quot;)
+col_val &lt;-  c(&quot;grey&quot;,&quot;yellow&quot;,&quot;red&quot;)
+
+plot(r_impact1, 
+     main=&quot;Hurricane impact with classification method 1&quot;,
+     col = col_val,
+     axes=F,
+     legend=F)
+
+legend(&#39;topright&#39;,
+       legend = legend_val ,
+       pt.cex=0.8,cex=0.8,
+       fill=col_val,
+       bty=&quot;n&quot;) </code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<pre class="r"><code>
+plot(r_impact2, 
+     main=&quot;Hurricane impact with classification method 2&quot;,
+     col = col_val,
+     axes=F,
+     legend=F)
+
+legend(&#39;topright&#39;,
+       legend = legend_val ,
+       pt.cex=0.8,cex=0.8,
+       fill=col_val,
+       bty=&quot;n&quot;) </code></pre>
+<p><img src="/post/2018-09-08-r-rmarkdown_files/figure-html/unnamed-chunk-10-2.png" width="672" /></p>
+<pre class="r"><code>
+
+#Save the output image of hurrican impact:
+
+out_rastname &lt;- paste0(&quot;ndvi_impact_method1&quot;,out_suffix,file_format)
+writeRaster(r_impact1,
+            filename = file.path(out_dir,out_rastname),
+            overwrite=T)
+out_rastname &lt;- paste0(&quot;ndvi_impact_method2&quot;,out_suffix,file_format)
+writeRaster(r_impact2,
+            filename = file.path(out_dir,out_rastname),
+            overwrite=T)
+</code></pre>
+</div>
+<div id="conclusions" class="section level3">
+<h3>Conclusions</h3>
+<p>This blog introduced a simple change detection analysis using MOD09 product aggregated at 1km resolution. We used two MODIS sensor images captured before and after hurrican Rita on the coast of Louisiana. Visual inspection showed evidence of changes (both in indivdiual bands and color composites). We also found that we are able to find quantitative changes, most notably a decrease in average NDVI in flooded areas. We used two common thresholding techniques used by researchers to classify the impact from a difference image (after-before) and found some matching with the FEMA flood map but with underestimation. The analysis is simple and straightforward but could be refined by using different thresholding and accounting for the vegetation and flood seasonality in the data. This would lead to more advanced topic: time series analysis of raster images. This may be a topic for a new blog!</p>
+</div>
+<div id="references" class="section level3">
+<h3>References</h3>
+<ul>
+<li>For a general introduction to spatial data: <a href="http://rspatial.org/spatial/rst/1-introduction.html" class="uri">http://rspatial.org/spatial/rst/1-introduction.html</a></li>
+<li>For Geosptial teaching material from the National Socio-Environmental Center: <a href="http://cyberhelp.sesync.org/syllabi/2018/04/02/geospatial-workshop.html" class="uri">http://cyberhelp.sesync.org/syllabi/2018/04/02/geospatial-workshop.html</a></li>
+<li>For an example of a research study on hurricane impact: Hurricane disturbance mapping using MODIS EVI data in the southeastern Yucatán, Mexico John Rogan , Laura Schneider , Zachary Christman , Marco Millones , Deborah Lawrence &amp; Birgit Schmook Pages 259-267 | Received 12 Jun 2010, Accepted 28 Aug 2010, Published online: 29 Oct 2010 Download citation <a href="https://doi.org/10.1080/01431161.2010.520344" class="uri">https://doi.org/10.1080/01431161.2010.520344</a></li>
+</ul>
 </div>
 </div>
