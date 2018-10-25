@@ -1,9 +1,13 @@
 ---
-title: "First analyses"
+title: "Raster Change Detection Analysis with two images"
 author: "Benoit Parmentier"
 date: 2018-09-08T21:13:14-05:00
 categories: ["R"]
 tags: ["R Markdown", "plot", "regression"]
+output:
+  html_document: 
+    toc: true # will make headers as table of contents at the beginning
+
 ---
 
 ```{r setup, include=FALSE}
