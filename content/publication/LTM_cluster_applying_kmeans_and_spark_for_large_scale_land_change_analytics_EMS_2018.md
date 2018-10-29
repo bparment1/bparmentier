@@ -20,8 +20,7 @@ publication_types = ["2"]
 publication = "In *Environmental Modeling & Software*"
 publication_short = ""
 selected = false
-title = "The land transformation model-cluster framework: Applying k-means and
-the Spark computing environment for large scale land change analytics"
+title = "The land transformation model-cluster framework: Applying k-means and the Spark computing environment for large scale land change analytics"
 url_code = ""
 url_dataset = ""
 url_pdf = "pdf/2011-gender-attitudes.pdf"
