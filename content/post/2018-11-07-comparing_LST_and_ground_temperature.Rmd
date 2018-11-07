@@ -2,13 +2,18 @@
 title: "Comparing satellite Land Surface Temperature and ground measurements"
 author: "Benoit Parmentier"
 date: 2018-11-07T21:13:14-05:00
-categories: ["Python"]
+categories: ["R"]
 tags: ["Markdown", "plot", "regression"]
 output:
   html_document: 
     toc: true # will make headers as table of contents at the beginning
 
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE)
+```
+
 
 #Notebook under preparation!
 
